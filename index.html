@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SRDP Student Analytics & Program Dashboard</title>
+  <meta name="description" content="Dynamic Interactive Student Dashboard with drill-down metrics, multi-chart visualizations, and live Google Sheets integration.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <div class="dashboard-container">
+    <!-- Header -->
+    <header class="dashboard-header">
+      <div class="header-left">
+        <h1>SRDP Student Analytics Dashboard</h1>
+        <p>Interactive multi-program enrollment analysis across Indian states & cohorts</p>
+      </div>
+      <div class="header-right">
+        <div class="sync-badge" id="syncStatusBadge">
+          <span class="pulse-dot"></span>
+          <span id="syncStatusText">Data Source: Local Snapshot</span>
+        </div>
+        <button class="btn btn-secondary" id="toggleSheetsBtn" aria-label="Configure Google Sheets">
+          <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z"/>
+          </svg>
+          Google Sheets Sync
+        </button>
+      </div>
+    </header>
+
+    <!-- Google Sheets Live Connector Banner -->
+    <section class="sheets-banner" id="sheetsBanner" aria-label="Google Sheets Connection Settings">
+      <div class="sheets-banner-header">
+        <div>
+          <h3 style="font-size: 1.1rem; font-weight: 700; color: #fff;">Connect to Live Google Sheet</h3>
+          <p style="font-size: 0.85rem; color: var(--text-secondary);">
+            Paste the <strong>Published CSV URL</strong> or <strong>Google Sheet Share URL</strong>. Whenever any row is updated or added in Google Sheets, click "Sync Now" (or enable auto-sync) to update the dashboard instantly!
+          </p>
+        </div>
+        <button class="btn btn-secondary" id="closeSheetsBanner" style="padding: 0.25rem 0.6rem;">&times;</button>
+      </div>
+      <div class="sheets-input-group">
+        <input type="text" class="sheets-input" id="sheetsUrlInput" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv OR Sheet Share Link">
+        <button class="btn btn-primary" id="connectSheetBtn">Connect & Sync</button>
+        <button class="btn btn-secondary" id="loadSampleSheetBtn">Load Live Demo Sheet</button>
+        <button class="btn btn-secondary" id="resetLocalBtn">Reset to Excel Snapshot</button>
+      </div>
+      <div id="sheetsSyncFeedback" style="margin-top: 0.75rem; font-size: 0.825rem;"></div>
+    </section>
+
+    <!-- Global Filter Bar -->
+    <section class="filter-bar" aria-label="Dashboard Filters">
+      <div class="filters-group">
+        <label for="filterProgram" style="font-size: 0.85rem; font-weight: 600; color: var(--text-secondary);">Filter By:</label>
+        
+        <select class="filter-select" id="filterProgram" aria-label="Select Training Program">
+          <option value="ALL">All Programs</option>
+        </select>
+
+        <select class="filter-select" id="filterState" aria-label="Select State">
+          <option value="ALL">All States</option>
+        </select>
+
+        <select class="filter-select" id="filterYear" aria-label="Select Cohort Year">
+          <option value="ALL">All Years (Total)</option>
+          <option value="2021">2021</option>
+          <option value="2022">2022</option>
+          <option value="2023">2023</option>
+          <option value="2024">2024</option>
+        </select>
+        
+        <button class="btn btn-secondary" id="resetFiltersBtn" style="padding: 0.45rem 0.9rem; font-size: 0.8rem;">
+          Reset Filters
+        </button>
+      </div>
+      <div class="active-filter-badge" id="activeFilterBadge">
+        Filtered View Active
+      </div>
+    </section>
+
+    <!-- Dynamic Metric Tiles (KPI Cards) -->
+    <section class="tiles-grid" aria-label="Dynamic KPI Tiles">
+      <!-- Tile 1 -->
+      <article class="metric-tile" id="tileTotalStudents" style="--tile-accent: var(--accent-cyan);" tabindex="0" role="button" aria-haspopup="dialog">
+        <div class="tile-top">
+          <span class="tile-title">Total Students</span>
+          <div class="tile-icon">👥</div>
+        </div>
+        <div class="tile-value" id="valTotalStudents">1,390</div>
+        <div class="tile-subtext">
+          <span class="clickable-hint">Click tile</span> for program & state breakdown
+        </div>
+      </article>
+
+      <!-- Tile 2 -->
+      <article class="metric-tile" id="tileTotalPrograms" style="--tile-accent: var(--accent-blue);" tabindex="0" role="button" aria-haspopup="dialog">
+        <div class="tile-top">
+          <span class="tile-title">Active Programs</span>
+          <div class="tile-icon">🎓</div>
+        </div>
+        <div class="tile-value" id="valTotalPrograms">11</div>
+        <div class="tile-subtext">
+          <span class="clickable-hint">Click tile</span> to compare all 11 courses
+        </div>
+      </article>
+
+      <!-- Tile 3 -->
+      <article class="metric-tile" id="tileTotalStates" style="--tile-accent: var(--accent-purple);" tabindex="0" role="button" aria-haspopup="dialog">
+        <div class="tile-top">
+          <span class="tile-title">States & UTs Covered</span>
+          <div class="tile-icon">📍</div>
+        </div>
+        <div class="tile-value" id="valTotalStates">28</div>
+        <div class="tile-subtext">
+          <span class="clickable-hint">Click tile</span> for state-by-state distribution
+        </div>
+      </article>
+
+      <!-- Tile 4 -->
+      <article class="metric-tile" id="tileTopProgram" style="--tile-accent: var(--accent-emerald);" tabindex="0" role="button" aria-haspopup="dialog">
+        <div class="tile-top">
+          <span class="tile-title">Top Program</span>
+          <div class="tile-icon">⭐</div>
+        </div>
+        <div class="tile-value" id="valTopProgram" style="font-size: 1.35rem; line-height: 1.25;">Solar & Electrical</div>
+        <div class="tile-subtext" id="subTopProgram">
+          <span class="clickable-hint">Click tile</span> to see its 15 states
+        </div>
+      </article>
+
+      <!-- Tile 5 -->
+      <article class="metric-tile" id="tileTopState" style="--tile-accent: var(--accent-amber);" tabindex="0" role="button" aria-haspopup="dialog">
+        <div class="tile-top">
+          <span class="tile-title">Top State</span>
+          <div class="tile-icon">🏆</div>
+        </div>
+        <div class="tile-value" id="valTopState" style="font-size: 1.45rem;">Karnataka</div>
+        <div class="tile-subtext" id="subTopState">
+          <span class="clickable-hint">Click tile</span> to view all courses in this state
+        </div>
+      </article>
+
+      <!-- Tile 6 -->
+      <article class="metric-tile" id="tileCohortGrowth" style="--tile-accent: var(--accent-rose);" tabindex="0" role="button" aria-haspopup="dialog">
+        <div class="tile-top">
+          <span class="tile-title">2024 Cohort</span>
+          <div class="tile-icon">📈</div>
+        </div>
+        <div class="tile-value" id="valRecentCohort">147</div>
+        <div class="tile-subtext">
+          <span class="clickable-hint">Click tile</span> to view 2024 annual metrics
+        </div>
+      </article>
+    </section>
+
+    <!-- Multi-Chart Analytics Section -->
+    <section class="charts-grid" aria-label="Visual Charts">
+      <!-- Chart 1: Programs Enrollment (Bar) -->
+      <div class="chart-card col-span-8">
+        <div class="chart-card-header">
+          <div>
+            <h3>Enrollment by Training Program</h3>
+            <p>Student count per specialized program (Click any bar to filter)</p>
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="chartPrograms"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 2: Program Share (Doughnut) -->
+      <div class="chart-card col-span-4">
+        <div class="chart-card-header">
+          <div>
+            <h3>Program Share Distribution</h3>
+            <p>Relative proportion of student intake</p>
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="chartShare"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 3: Top States (Horizontal Bar) -->
+      <div class="chart-card col-span-6">
+        <div class="chart-card-header">
+          <div>
+            <h3>Geographic Reach (Top States)</h3>
+            <p>Number of students trained across key regions</p>
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="chartStates"></canvas>
+        </div>
+      </div>
+
+      <!-- Chart 4: Year-over-Year Trends (Line) -->
+      <div class="chart-card col-span-6">
+        <div class="chart-card-header">
+          <div>
+            <h3>Cohort Enrollment Trend (2021 – 2024)</h3>
+            <p>Annual growth trajectory of student training</p>
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="chartTrend"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Detailed Student Directory (Sheet2 Data) -->
+    <section class="directory-section" aria-label="Individual Student Directory">
+      <div class="directory-header">
+        <div>
+          <h3 style="font-size: 1.15rem; font-weight: 700;">Student Roster & Directory</h3>
+          <p style="font-size: 0.85rem; color: var(--text-secondary);">Individual student details, training program, and state origins</p>
+        </div>
+        <input type="text" class="table-search-input" id="tableSearchInput" placeholder="Search by name, state, or course...">
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table" id="studentRosterTable">
+          <thead>
+            <tr>
+              <th style="width: 80px;">S. No</th>
+              <th>Student Name</th>
+              <th>State</th>
+              <th>Training Program</th>
+            </tr>
+          </thead>
+          <tbody id="studentRosterBody">
+            <!-- Populated via JavaScript -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+
+  <!-- Dynamic Drill-Down Modal for Tile Clicks -->
+  <div class="modal-overlay" id="drilldownModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalTitle">Tile Drill-Down Details</h2>
+        <button class="modal-close-btn" id="modalCloseBtn" aria-label="Close dialog">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="modal-grid">
+          <div class="modal-chart-box">
+            <canvas id="modalSubChart"></canvas>
+          </div>
+          <div class="modal-summary-stats" id="modalStatPills">
+            <!-- Dynamically populated stat pills -->
+          </div>
+        </div>
+
+        <h4 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 0.75rem; color: var(--text-primary);">Detailed State & Program Matrix</h4>
+        <div class="table-wrapper" style="max-height: 280px; overflow-y: auto;">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>Training Program</th>
+                <th>State</th>
+                <th style="text-align: right;">Student Count</th>
+                <th style="text-align: right;">% of Selection</th>
+              </tr>
+            </thead>
+            <tbody id="modalTableBody">
+              <!-- Dynamically populated rows -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
